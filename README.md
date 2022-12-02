@@ -1,1 +1,1 @@
-# SCanFormer
+# SCanNet
