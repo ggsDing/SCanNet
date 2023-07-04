@@ -11,4 +11,7 @@ For readers to easily evaluate the accuracy, we provide the trained weights.
 
 SECOND: [Baidu](https://pan.baidu.com/s/1zL3H1IlTXB9QnHDxY8sRpg?pwd=SCAN) (pswd: SCAN)
 
-This repository is under construction...
+LandsatSCD: [Baidu](https://pan.baidu.com/s/1qih4E1g1c3nbbJ3gFaSlYA?pwd=SCAN) (pswd: SCAN)
+
+
+(Note: This repository is under construction, contents are not final.)
