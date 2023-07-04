@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 #################################
 from datasets import RS_ST as RS
 #from models.BiSRNet import BiSRNet as Net
-from models.SSCDl import SSCDl as Net
+from models.SCanNet import SCanNet as Net
 DATA_NAME = 'ST'
 #################################
 
