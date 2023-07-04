@@ -8,6 +8,7 @@ Pytorch codes of 'Joint Spatio-Temporal Modeling for Semantic Change Detection i
 # Checkpoints
 
 For readers to easily evaluate the accuracy, we provide the trained weights.
+
 SECOND: [Baidu](https://pan.baidu.com/s/1zL3H1IlTXB9QnHDxY8sRpg?pwd=SCAN) (pswd: SCAN)
 
 This repository is under construction...
