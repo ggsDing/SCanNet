@@ -27,8 +27,8 @@ DATA_NAME = 'ST'
 # Training options
 ###############################################
 args = {
-    'train_batch_size': 2,
-    'val_batch_size': 2,
+    'train_batch_size': 8,
+    'val_batch_size': 8,
     'lr': 0.1,
     'epochs': 50,
     'gpu': True,
