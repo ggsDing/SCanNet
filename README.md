@@ -9,9 +9,13 @@ Pytorch codes of 'Joint Spatio-Temporal Modeling for Semantic Change Detection i
 
 For readers to easily evaluate the accuracy, we provide the trained weights.
 
-SECOND: [Baidu](https://pan.baidu.com/s/1zL3H1IlTXB9QnHDxY8sRpg?pwd=SCAN) (pswd: SCAN)
+SECOND:
+[Drive](https://drive.google.com/file/d/1KfA_s3UVqK645WVYPdQ8aIlQkpnuPaPY/view?usp=sharing)
+[Baidu](https://pan.baidu.com/s/1zL3H1IlTXB9QnHDxY8sRpg?pwd=SCAN) (pswd: SCAN)
 
-LandsatSCD: [Baidu](https://pan.baidu.com/s/1qih4E1g1c3nbbJ3gFaSlYA?pwd=SCAN) (pswd: SCAN)
+LandsatSCD:
+[Drive](https://drive.google.com/file/d/1lCWNUyZyMH7gYTwnhcs4-4oOuveKbJCI/view?usp=drive_link)
+[Baidu](https://pan.baidu.com/s/1qih4E1g1c3nbbJ3gFaSlYA?pwd=SCAN) (pswd: SCAN)
 
 
 (Note: This repository is under construction, contents are not final.)
