@@ -19,7 +19,7 @@ from utils.utils import accuracy, SCDD_eval_all, AverageMeter
 # Data and model choose
 ###############################################
 from datasets import RS_ST as RS
-#from models.SSCDl_light import SSCDl as Net
+#from models.TED import TED as Net
 from models.SCanNet import SCanNet as Net
 NET_NAME = 'SCanNet'
 DATA_NAME = 'ST'
@@ -43,7 +43,7 @@ args = {
     'pred_dir': os.path.join(working_path, 'results', DATA_NAME),
     'chkpt_dir': os.path.join(working_path, 'checkpoints', DATA_NAME),
     'log_dir': os.path.join(working_path, 'logs', DATA_NAME, NET_NAME),
-    'load_path': os.path.join(working_path, 'checkpoints', DATA_NAME, 'xxx.pth')
+    'load_path': os.path.join(working_path, 'checkpoints', DATA_NAME, 'xx.pth')
 }
 ###############################################
 
@@ -81,9 +81,9 @@ def main():
     #freeze_model(net.FCN)
 
     train_set = RS.Data('train', random_flip=True)
-    train_loader = DataLoader(train_set, batch_size=args['train_batch_size'], num_workers=0, shuffle=True)
+    train_loader = DataLoader(train_set, batch_size=args['train_batch_size'], shuffle=True)
     val_set = RS.Data('val')
-    val_loader = DataLoader(val_set, batch_size=args['val_batch_size'], num_workers=0, shuffle=False)
+    val_loader = DataLoader(val_set, batch_size=args['val_batch_size'], shuffle=False)
 
     criterion = CrossEntropyLoss2d(ignore_index=0).cuda()
     optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args['lr'],
@@ -98,7 +98,7 @@ def train(train_loader, net, criterion, optimizer, val_loader):
     net_psd.eval()
     
     bestaccT = 0
-    bestscoreV = 0.0
+    bestFscdV = 0.0
     bestloss = 1.0
     begin_time = time.time()
     all_iters = float(len(train_loader) * args['epochs'])
@@ -135,7 +135,7 @@ def train(train_loader, net, criterion, optimizer, val_loader):
             loss_bn = weighted_BCE_logits(out_change, labels_bn)
             loss_sc = criterion_sc(outputs_A[:, 1:], outputs_B[:, 1:], labels_bn)
             loss = loss_seg*0.5 + loss_bn + loss_sc
-            if True: #curr_epoch: #bestscoreV>0.3:
+            if bestFscdV>0.3:
                 with torch.no_grad():
                     out_change_psd, outputsA_psd, outputsB_psd = net_psd(imgs_A, imgs_B)
                     softmap_A = F.softmax(outputsA_psd, dim=1)
@@ -225,6 +225,8 @@ def train(train_loader, net, criterion, optimizer, val_loader):
             bestFscdV=Fscd_v
             bestaccV=acc_v
             bestloss=loss_v
+            net_psd = copy.deepcopy(net)
+            net_psd.eval()
             torch.save(net.state_dict(), os.path.join(args['chkpt_dir'], NET_NAME+'_%de_mIoU%.2f_Sek%.2f_Fscd%.2f_OA%.2f.pth'\
                 %(curr_epoch, mIoU_v*100, Sek_v*100, Fscd_v*100, acc_v*100)) )
         print('Total time: %.1fs Best rec: Train acc %.2f, Val Fscd %.2f acc %.2f loss %.4f' %(time.time()-begin_time, bestaccT*100, bestFscdV*100, bestaccV*100, bestloss))
