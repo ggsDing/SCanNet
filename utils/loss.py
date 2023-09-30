@@ -1,259 +1,343 @@
-import torch
-import torch.nn.functional as F
-from torch.autograd import Variable
-import torch.nn as nn
-# Recommend
-class CrossEntropyLoss2d(nn.Module):
-    def __init__(self, weight=None, ignore_index=-1):
-        super(CrossEntropyLoss2d, self).__init__()
-        self.nll_loss = nn.NLLLoss(weight=weight, ignore_index=ignore_index,
-                                   reduction='elementwise_mean')
+import os
+import math
+import random
+import numpy as np
+from scipy import stats
+from utils import eval_segm as seg_acc
 
-    def forward(self, inputs, targets):
-        return self.nll_loss(F.log_softmax(inputs, dim=1), targets)
+def read_idtxt(path):
+  id_list = []
+  #print('start reading')
+  f = open(path, 'r')
+  curr_str = ''
+  while True:
+      ch = f.read(1)
+      if is_number(ch):
+          curr_str+=ch
+      else:
+          id_list.append(curr_str)
+          #print(curr_str)
+          curr_str = ''      
+      if not ch:
+          #print('end reading')
+          break
+  f.close()
+  return id_list
 
-
-# this may be unstable sometimes.Notice set the size_average
-def CrossEntropy2d(input, target, weight=None, size_average=False):
-    # input:(n, c, h, w) target:(n, h, w)
-    n, c, h, w = input.size()
-
-    input = input.transpose(1, 2).transpose(2, 3).contiguous()
-    input = input[target.view(n, h, w, 1).repeat(1, 1, 1, c) >= 0].view(-1, c)
-
-    target_mask = target >= 0
-    target = target[target_mask]
-    #loss = F.nll_loss(F.log_softmax(input), target, weight=weight, size_average=False)
-    loss = F.cross_entropy(input, target, weight=weight, size_average=False)
-    if size_average:
-        loss /= target_mask.sum().data[0]
-
-    return loss
-    
-def weighted_BCE(output, target, weight_pos=None, weight_neg=None):
-    output = torch.clamp(output,min=1e-8,max=1-1e-8)
-    
-    if weight_pos is not None:        
-        loss = weight_pos * (target * torch.log(output)) + \
-               weight_neg * ((1 - target) * torch.log(1 - output))
+def get_square(img, pos):
+    """Extract a left or a right square from ndarray shape : (H, W, C))"""
+    h = img.shape[0]
+    if pos == 0:
+        return img[:, :h]
     else:
-        loss = target * torch.log(output) + (1 - target) * torch.log(1 - output)
+        return img[:, -h:]
 
-    return torch.neg(torch.mean(loss))
+def split_img_into_squares(img):
+    return get_square(img, 0), get_square(img, 1)
 
-def weighted_BCE_logits(logit_pixel, truth_pixel, weight_pos=0.25, weight_neg=0.75):
-    logit = logit_pixel.view(-1)
-    truth = truth_pixel.view(-1)
-    assert(logit.shape==truth.shape)
+def hwc_to_chw(img):
+    return np.transpose(img, axes=[2, 0, 1])
 
-    loss = F.binary_cross_entropy_with_logits(logit, truth, reduction='none')
+def resize_and_crop(pilimg, scale=0.5, final_height=None):
+    w = pilimg.size[0]
+    h = pilimg.size[1]
+    newW = int(w * scale)
+    newH = int(h * scale)
+
+    if not final_height:
+        diff = 0
+    else:
+        diff = newH - final_height
+
+    img = pilimg.resize((newW, newH))
+    img = img.crop((0, diff // 2, newW, newH - diff // 2))
+    return np.array(img, dtype=np.float32)
+
+def batch(iterable, batch_size):
+    """Yields lists by batch"""
+    b = []
+    for i, t in enumerate(iterable):
+        b.append(t)
+        if (i + 1) % batch_size == 0:
+            yield b
+            b = []
+
+    if len(b) > 0:
+        yield b
+
+def seprate_batch(dataset, batch_size):
+    """Yields lists by batch"""
+    num_batch = len(dataset)//batch_size+1
+    batch_len = batch_size
+    # print (len(data))
+    # print (num_batch)
+    batches = []
+    for i in range(num_batch):
+        batches.append([dataset[j] for j in range(batch_len)])
+        # print('current data index: %d' %(i*batch_size+batch_len))
+        if (i+2==num_batch): batch_len = len(dataset)-(num_batch-1)*batch_size
+    return(batches)
+
+def split_train_val(dataset, val_percent=0.05):
+    dataset = list(dataset)
+    length = len(dataset)
+    n = int(length * val_percent)
+    random.shuffle(dataset)
+    return {'train': dataset[:-n], 'val': dataset[-n:]}
+
+
+def normalize(x):
+    return x / 255
+
+def merge_masks(img1, img2, full_w):
+    h = img1.shape[0]
+
+    new = np.zeros((h, full_w), np.float32)
+    new[:, :full_w // 2 + 1] = img1[:, :full_w // 2 + 1]
+    new[:, full_w // 2 + 1:] = img2[:, -(full_w // 2 - 1):]
+
+    return new
+
+# credits to https://stackoverflow.com/users/6076729/manuel-lagunas
+def rle_encode(mask_image):
+    pixels = mask_image.flatten()
+    # We avoid issues with '1' at the start or end (at the corners of
+    # the original image) by setting those pixels to '0' explicitly.
+    # We do not expect these to be non-zero for an accurate mask,
+    # so this should not harm the score.
+    pixels[0] = 0
+    pixels[-1] = 0
+    runs = np.where(pixels[1:] != pixels[:-1])[0] + 2
+    runs[1::2] = runs[1::2] - runs[:-1:2]
+    return runs
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.initialized = False
+        self.val = None
+        self.avg = None
+        self.sum = None
+        self.count = None
+
+    def initialize(self, val, count, weight):
+        self.val = val
+        self.avg = val
+        self.count = count
+        self.sum = val * weight
+        self.initialized = True
+
+    def update(self, val, count=1, weight=1):
+        if not self.initialized:
+            self.initialize(val, count, weight)
+        else:
+            self.add(val, count, weight)
+
+    def add(self, val, count, weight):
+        self.val = val
+        self.count += count
+        self.sum += val * weight
+        self.avg = self.sum / self.count
+
+    def value(self):
+        return self.val
+
+    def average(self):
+        return self.avg
+
+def ImageValStretch2D(img):
+    img = img*255
+    #maxval = img.max(axis=0).max(axis=0)
+    #minval = img.min(axis=0).min(axis=0)
+    #img = (img-minval)*255/(maxval-minval)
+    return img.astype(int)
+
+def ConfMap(output, pred):
+    # print(output.shape)
+    n, h, w = output.shape
+    conf = np.zeros(pred.shape, float)
+    for h_idx in range(h):
+      for w_idx in range(w):
+        n_idx = int(pred[h_idx, w_idx])
+        sum = 0
+        for i in range(n):
+          val=output[i, h_idx, w_idx]
+          if val>0: sum+=val
+        conf[h_idx, w_idx] = output[n_idx, h_idx, w_idx]/sum
+        if conf[h_idx, w_idx]<0: conf[h_idx, w_idx]=0
+    # print(conf)
+    return conf
+
+def accuracy(pred, label, ignore_zero=False):
+    valid = (label >= 0)
+    if ignore_zero: valid = (label > 0)
+    acc_sum = (valid * (pred == label)).sum()
+    valid_sum = valid.sum()
+    acc = float(acc_sum) / (valid_sum + 1e-10)
+    return acc, valid_sum
     
-    pos = (truth>0.5).float()
-    neg = (truth<0.5).float()
-    pos_num = pos.sum().item() + 1e-12
-    neg_num = neg.sum().item() + 1e-12
-    loss = (weight_pos*pos*loss/pos_num + weight_neg*neg*loss/neg_num).sum()
+def fast_hist(a, b, n):
+    k = (a >= 0) & (a < n)
+    return np.bincount(n * a[k].astype(int) + b[k], minlength=n ** 2).reshape(n, n)
 
-    return loss
+def get_hist(image, label, num_class):
+    hist = np.zeros((num_class, num_class))
+    hist += fast_hist(image.flatten(), label.flatten(), num_class)
+    return hist
 
-class FocalLoss(nn.Module):
-    def __init__(self, alpha=0.5, gamma=2, weight=None, ignore_index=255):
-        super().__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.weight = weight
-        self.ignore_index = ignore_index
-        self.ce_fn = nn.CrossEntropyLoss(weight=self.weight, ignore_index=self.ignore_index)
-
-    def forward(self, preds, labels):
-        logpt = -self.ce_fn(preds, labels)
-        pt = torch.exp(logpt)
-        loss = -((1 - pt) ** self.gamma) * self.alpha * logpt
-        return loss
-
-class FocalLoss2d(nn.Module):
-    def __init__(self, gamma=0, weight=None, size_average=True, ignore_index=-1):
-        super(FocalLoss2d, self).__init__()
-        self.gamma = gamma
-        self.weight = weight
-        self.size_average = size_average
-        self.ignore_index = ignore_index
-
-    def forward(self, input, target):
-        if input.dim()>2:
-            input = input.contiguous().view(input.size(0), input.size(1), -1)
-            input = input.transpose(1,2)
-            input = input.contiguous().view(-1, input.size(2)).squeeze()
-        if target.dim()==4:
-            target = target.contiguous().view(target.size(0), target.size(1), -1)
-            target = target.transpose(1,2)
-            target = target.contiguous().view(-1, target.size(2)).squeeze()
-        elif target.dim()==3:
-            target = target.view(-1)
+def cal_kappa(hist):
+    if hist.sum() == 0:
+        po = 0
+        pe = 1
+        kappa = 0
+    else:
+        po = np.diag(hist).sum() / hist.sum()
+        pe = np.matmul(hist.sum(1), hist.sum(0).T) / hist.sum() ** 2
+        if pe == 1:
+            kappa = 0
         else:
-            target = target.view(-1, 1)
+            kappa = (po - pe) / (1 - pe)
+    return kappa
 
-        # compute the negative likelyhood
-        weight = Variable(self.weight)
-        logpt = -F.cross_entropy(input, target, ignore_index=self.ignore_index)
-        pt = torch.exp(logpt)
-
-        # compute the loss
-        loss = -((1-pt)**self.gamma) * logpt
-
-        # averaging (or not) loss
-        if self.size_average:
-            return loss.mean()
-        else:
-            return loss.sum()
-
-class ChangeSimilarity(nn.Module):
-    """input: x1, x2 multi-class predictions, c = class_num
-       label_change: changed part
-    """
-    def __init__(self, reduction='mean'):
-        super(ChangeSimilarity, self).__init__()
-        self.loss_f = nn.CosineEmbeddingLoss(margin=0., reduction=reduction)
-        
-    def forward(self, x1, x2, label_change):
-        b,c,h,w = x1.size()
-        x1 = F.softmax(x1, dim=1)
-        x2 = F.softmax(x2, dim=1)
-        x1 = x1.permute(0,2,3,1)
-        x2 = x2.permute(0,2,3,1)
-        x1 = torch.reshape(x1,[b*h*w,c])
-        x2 = torch.reshape(x2,[b*h*w,c])
-        
-        label_unchange = ~label_change.bool()
-        target = label_unchange.float()
-        target = target - label_change.float()
-        target = torch.reshape(target,[b*h*w])
-        
-        loss = self.loss_f(x1, x2, target)
-        return loss
-        
-class ChangeSalience(nn.Module):
-    """input: x1, x2 multi-class predictions, c = class_num
-       label_change: changed part
-    """
-    def __init__(self, reduction='mean'):
-        super(ChangeSimilarity, self).__init__()
-        self.loss_f = nn.MSELoss(reduction=reduction)
-        
-    def forward(self, x1, x2, label_change):
-        b,c,h,w = x1.size()
-        x1 = F.softmax(x1, dim=1)[:,0,:,:]
-        x2 = F.softmax(x2, dim=1)[:,0,:,:]
-                
-        loss = self.loss_f(x1, x2.detach()) + self.loss_f(x2, x1.detach())
-        return loss*0.5
+def SCDD_eval_all(preds, labels, num_class):
+    hist = np.zeros((num_class, num_class))
+    for pred, label in zip(preds, labels):
+        infer_array = np.array(pred)
+        unique_set = set(np.unique(infer_array))
+        assert unique_set.issubset(set([0, 1, 2, 3, 4, 5, 6])), "unrecognized label number"
+        label_array = np.array(label)
+        assert infer_array.shape == label_array.shape, "The size of prediction and target must be the same"
+        hist += get_hist(infer_array, label_array, num_class)
     
+    hist_fg = hist[1:, 1:]
+    c2hist = np.zeros((2, 2))
+    c2hist[0][0] = hist[0][0]
+    c2hist[0][1] = hist.sum(1)[0] - hist[0][0]
+    c2hist[1][0] = hist.sum(0)[0] - hist[0][0]
+    c2hist[1][1] = hist_fg.sum()
+    hist_n0 = hist.copy()
+    hist_n0[0][0] = 0
+    kappa_n0 = cal_kappa(hist_n0)
+    iu = np.diag(c2hist) / (c2hist.sum(1) + c2hist.sum(0) - np.diag(c2hist))
+    IoU_fg = iu[1]
+    IoU_mean = (iu[0] + iu[1]) / 2
+    Sek = (kappa_n0 * math.exp(IoU_fg)) / math.e
+    
+    pixel_sum = hist.sum()
+    change_pred_sum  = pixel_sum - hist.sum(1)[0].sum()
+    change_label_sum = pixel_sum - hist.sum(0)[0].sum()
+    change_ratio = change_label_sum/pixel_sum
+    SC_TP = np.diag(hist[1:, 1:]).sum()
+    SC_Precision = SC_TP/change_pred_sum
+    SC_Recall = SC_TP/change_label_sum
+    Fscd = stats.hmean([SC_Precision, SC_Recall])
+    return Fscd, IoU_mean, Sek
 
-def pix_loss(output, target, pix_weight, ignore_index=None):
-    # Calculate log probabilities
-    if ignore_index is not None:
-        active_pos = 1-(target==ignore_index).unsqueeze(1).cuda().float()
-        pix_weight *= active_pos
+def SCDD_eval(pred, label, num_class):
+    infer_array = np.array(pred)
+    unique_set = set(np.unique(infer_array))
+    assert unique_set.issubset(set([0, 1, 2, 3, 4, 5, 6])), "unrecognized label number"
+    label_array = np.array(label)
+    assert infer_array.shape == label_array.shape, "The size of prediction and target must be the same"
+    hist = get_hist(infer_array, label_array, num_class)
+    hist_fg = hist[1:, 1:]
+    c2hist = np.zeros((2, 2))
+    c2hist[0][0] = hist[0][0]
+    c2hist[0][1] = hist.sum(1)[0] - hist[0][0]
+    c2hist[1][0] = hist.sum(0)[0] - hist[0][0]
+    c2hist[1][1] = hist_fg.sum()
+    hist_n0 = hist.copy()
+    hist_n0[0][0] = 0
+    kappa_n0 = cal_kappa(hist_n0)
+    iu = np.diag(c2hist) / (c2hist.sum(1) + c2hist.sum(0) - np.diag(c2hist))
+    IoU_fg = iu[1]
+    IoU_mean = (iu[0] + iu[1]) / 2
+    Sek = (kappa_n0 * math.exp(IoU_fg)) / math.e
         
-    batch_size, _, H, W = output.size()
-    logp = F.log_softmax(output, dim=1)
-    # Gather log probabilities with respect to target
-    logp = logp.gather(1, target.view(batch_size, 1, H, W))
-    # Multiply with weights
-    weighted_logp = (logp * pix_weight).view(batch_size, -1)
-    # Rescale so that loss is in approx. same interval
-    weighted_loss = weighted_logp.sum(1) / pix_weight.view(batch_size, -1).sum(1)
-    # Average over mini-batch
-    weighted_loss = -1.0 * weighted_loss.mean()
-    return weighted_loss
+    pixel_sum = hist.sum()
+    change_pred_sum  = pixel_sum - hist.sum(1)[0].sum()
+    change_label_sum = pixel_sum - hist.sum(0)[0].sum()
+    change_ratio = change_label_sum/pixel_sum
+    SC_TP = np.diag(hist[1:, 1:]).sum()
+    SC_Precision = SC_TP/change_pred_sum
+    SC_Recall = SC_TP/change_label_sum
+    Fscd = stats.hmean([SC_Precision, SC_Recall])
+    return Fscd, IoU_mean, Sek
 
-def make_one_hot(input, num_classes):
-    """Convert class index tensor to one hot encoding tensor.
-    Args:
-         input: A tensor of shape [N, 1, *]
-         num_classes: An int of number of class
-    Returns:
-        A tensor of shape [N, num_classes, *]
-    """
-    shape = np.array(input.shape)
-    shape[1] = num_classes
-    shape = tuple(shape)
-    result = torch.zeros(shape)
-    result = result.scatter_(1, input.cpu(), 1)
+def FWIoU(pred, label, bn_mode=False, ignore_zero=False):
+    if bn_mode:
+        pred = (pred>= 0.5)
+        label = (label>= 0.5)
+    elif ignore_zero:
+        pred = pred-1
+        label = label-1
+    FWIoU = seg_acc.frequency_weighted_IU(pred, label)
+    return FWIoU
 
-    return result
+def binary_accuracy(pred, label):
+    valid = (label < 2)
+    acc_sum = (valid * (pred == label)).sum()
+    valid_sum = valid.sum()
+    acc = float(acc_sum) / (valid_sum + 1e-10)
+    return acc
+
+def intersectionAndUnion(imPred, imLab, numClass):
+    imPred = np.asarray(imPred).copy()
+    imLab = np.asarray(imLab).copy()
+
+    imPred += 1
+    imLab += 1
+    # Remove classes from unlabeled pixels in gt image.
+    # We should not penalize detections in unlabeled portions of the image.
+    imPred = imPred * (imLab > 0)
+
+    # Compute area intersection:
+    intersection = imPred * (imPred == imLab)
+    (area_intersection, _) = np.histogram(
+        intersection, bins=numClass, range=(1, numClass+1))
+    # print(area_intersection)
+
+    # Compute area union:
+    (area_pred, _) = np.histogram(imPred, bins=numClass, range=(1, numClass+1))
+    (area_lab, _) = np.histogram(imLab, bins=numClass, range=(1, numClass+1))
+    area_union = area_pred + area_lab - area_intersection
+    # print(area_pred)
+    # print(area_lab)
+
+    return (area_intersection, area_union)
+
+def CaclTP(imPred, imLab, numClass):
+    imPred = np.asarray(imPred).copy()
+    imLab = np.asarray(imLab).copy()
+
+    imPred += 1
+    imLab += 1
+    # # Remove classes from unlabeled pixels in gt image.
+    # # We should not penalize detections in unlabeled portions of the image.
+    imPred = imPred * (imLab > 0)
+
+    # Compute area intersection:
+    TP = imPred * (imPred == imLab)
+    (TP_hist, _) = np.histogram(
+        TP, bins=numClass, range=(1, numClass+1))
+    # print(TP.shape)
+    # print(TP_hist)
+
+    # Compute area union:
+    (pred_hist, _) = np.histogram(imPred, bins=numClass, range=(1, numClass+1))
+    (lab_hist, _) = np.histogram(imLab, bins=numClass, range=(1, numClass+1))
+    # print(pred_hist)
+    # print(lab_hist)
+    # precision = TP_hist / (lab_hist + 1e-10) + 1e-10
+    # recall = TP_hist / (pred_hist + 1e-10) + 1e-10
+    # # print(precision)
+    # # print(recall)
+    # F1 = [stats.hmean([pre, rec]) for pre, rec in zip(precision, recall)]
+    # print(F1)
 
 
-class BinaryDiceLoss(nn.Module):
-    """Dice loss of binary class
-    Args:
-        smooth: A float number to smooth loss, and avoid NaN error, default: 1
-        p: Denominator value: \sum{x^p} + \sum{y^p}, default: 2
-        predict: A tensor of shape [N, *]
-        target: A tensor of shape same with predict
-        reduction: Reduction method to apply, return mean over batch if 'mean',
-            return sum if 'sum', return a tensor of shape [N,] if 'none'
-    Returns:
-        Loss tensor according to arg reduction
-    Raise:
-        Exception if unexpected reduction
-    """
-    def __init__(self, smooth=1, p=2, reduction='mean'):
-        super(BinaryDiceLoss, self).__init__()
-        self.smooth = smooth
-        self.p = p
-        self.reduction = reduction
+    # print(area_pred)
+    # print(area_lab)
 
-    def forward(self, predict, target):
-        assert predict.shape[0] == target.shape[0], "predict & target batch size don't match"
-        predict = predict.contiguous().view(predict.shape[0], -1)
-        target = target.contiguous().view(target.shape[0], -1)
-
-        num = torch.sum(torch.mul(predict, target), dim=1) + self.smooth
-        den = torch.sum(predict.pow(self.p) + target.pow(self.p), dim=1) + self.smooth
-
-        loss = 1 - num / den
-
-        if self.reduction == 'mean':
-            return loss.mean()
-        elif self.reduction == 'sum':
-            return loss.sum()
-        elif self.reduction == 'none':
-            return loss
-        else:
-            raise Exception('Unexpected reduction {}'.format(self.reduction))
-
-
-class DiceLoss(nn.Module):
-    """Dice loss, need one hot encode input
-    Args:
-        weight: An array of shape [num_classes,]
-        ignore_index: class index to ignore
-        predict: A tensor of shape [N, C, *]
-        target: A tensor of same shape with predict
-        other args pass to BinaryDiceLoss
-    Return:
-        same as BinaryDiceLoss
-    """
-    def __init__(self, weight=None, ignore_index=None, **kwargs):
-        super(DiceLoss, self).__init__()
-        self.kwargs = kwargs
-        self.weight = weight
-        self.ignore_index = ignore_index
-
-    def forward(self, predict, target):
-        assert predict.shape == target.shape, 'predict & target shape do not match'
-        dice = BinaryDiceLoss(**self.kwargs)
-        total_loss = 0
-        predict = F.softmax(predict, dim=1)
-
-        for i in range(target.shape[1]):
-            if i != self.ignore_index:
-                dice_loss = dice(predict[:, i], target[:, i])
-                if self.weight is not None:
-                    assert self.weight.shape[0] == target.shape[1], \
-                        'Expect weight shape [{}], get[{}]'.format(target.shape[1], self.weight.shape[0])
-                    dice_loss *= self.weights[i]
-                total_loss += dice_loss
-
-        return total_loss/target.shape[1]
+    return (TP_hist, pred_hist, lab_hist)
