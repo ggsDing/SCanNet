@@ -16,7 +16,7 @@ STD_A  = np.array([48.30,  46.27,  48.14])
 MEAN_B = np.array([111.07, 114.04, 118.18])
 STD_B  = np.array([49.41,  47.01,  47.94])
 
-root = 'D:/RS/SECOND/'
+root = '/DATA_ROOT/'
 
 colormap2label = np.zeros(256 ** 3)
 for i, cm in enumerate(ST_COLORMAP):
@@ -97,7 +97,6 @@ def read_RSimages(mode):
             labels_A.append(label_A)
             labels_B.append(label_B)
         if not idx%500: print('%d/%d images loaded.'%(idx, len(data_list)))
-        if idx>10: break
     
     print(labels_A[0].shape)
     print(str(len(imgs_list_A)) + ' ' + mode + ' images' + ' loaded.')
