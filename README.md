@@ -31,4 +31,17 @@ For readers' convenience, we also provide the preprocessed data:
 
 [Google Drive](https://drive.google.com/file/d/11CkLhakNtfaBH78SGTHxcXKNsBM524H5/view?usp=sharing)
 
+## Cite SCanNet
+
+If you find this work useful or interesting, please consider citing the following BibTeX entry.
+
+```
+@article{ding2022joint,
+  title={Joint Spatio-Temporal Modeling for Semantic Change Detection in Remote Sensing Images},
+  author={Ding, Lei and Zhang, Jing and Zhang, Kai and Guo, Haitao and Liu, Bing and Bruzzone, Lorenzo},
+  journal={arXiv preprint arXiv:2212.05245},
+  year={2022}
+}
+```
+
 (Note: This repository is under construction, contents are not final.)
