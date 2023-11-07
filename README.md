@@ -20,4 +20,15 @@ LandsatSCD:
 2.[Baidu](https://pan.baidu.com/s/1qih4E1g1c3nbbJ3gFaSlYA?pwd=SCAN) (pswd: SCAN)
 
 
+## Landsat-SCD
+
+The land-scd dataset needs to be pre-processed to meet the experimental settings in this paper.
+More details are provided at [/datasets/LandsatSCD/read_me.md](https://github.com/ggsDing/SCanNet/tree/main/datasets/LandsatSCD)
+
+For readers' convenience, we also provide the preprocessed data:
+
+[Baidu Netdisk](https://pan.baidu.com/s/1ynizp4WST6EeBo6pxo6Kog?pwd=lscd)(psswd lscd)
+
+[Google Drive](https://drive.google.com/file/d/11CkLhakNtfaBH78SGTHxcXKNsBM524H5/view?usp=sharing)
+
 (Note: This repository is under construction, contents are not final.)
