@@ -11,5 +11,6 @@ We provide scripts to process the landsat_SCD dataset into the SCD formats.
     to mask the invalid area in the Landsat-SCD labels.
 
 For readers' convenience, we provide also the preprocessed images at these links:
+
 [Baidu Netdisk](https://pan.baidu.com/s/1ynizp4WST6EeBo6pxo6Kog?pwd=lscd)(psswd lscd)
 [Google Drive](https://drive.google.com/file/d/11CkLhakNtfaBH78SGTHxcXKNsBM524H5/view?usp=sharing)
