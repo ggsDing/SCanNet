@@ -27,7 +27,7 @@ More details are provided at [/datasets/LandsatSCD/read_me.md](https://github.co
 
 For readers' convenience, we also provide the preprocessed data:
 
-[Baidu Netdisk](https://pan.baidu.com/s/1ynizp4WST6EeBo6pxo6Kog?pwd=lscd)(psswd lscd)
+[Baidu Netdisk](https://pan.baidu.com/s/1ynizp4WST6EeBo6pxo6Kog?pwd=lscd) (psswd lscd)
 
 [Google Drive](https://drive.google.com/file/d/11CkLhakNtfaBH78SGTHxcXKNsBM524H5/view?usp=sharing)
 
