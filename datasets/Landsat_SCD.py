@@ -136,11 +136,11 @@ class Data(data.Dataset):
         img_B = normalize_image(img_B, 'B')
         if self.valid_label:
             if self.random_flip:
-                img_A, img_B, label_A, label_B, valid_label = transform.rand_rot90_flip([img_A, img_B, label_A, label_B, valid_label])
+                img_A, img_B, label_A, label_B, valid_label = transform.rand_rot90_flip_SCD5([img_A, img_B, label_A, label_B, valid_label])
             return F.to_tensor(img_A), F.to_tensor(img_B), torch.from_numpy(label_A), torch.from_numpy(label_B), torch.from_numpy(valid_label)
         else:
             if self.random_flip:
-                img_A, img_B, label_A, label_B = transform.rand_rot90_flip([img_A, img_B, label_A, label_B])
+                img_A, img_B, label_A, label_B = transform.rand_rot90_flip_SCD([img_A, img_B, label_A, label_B])
             return F.to_tensor(img_A), F.to_tensor(img_B), torch.from_numpy(label_A), torch.from_numpy(label_B)
 
     def __len__(self):
