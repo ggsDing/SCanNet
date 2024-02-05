@@ -32,6 +32,7 @@ args = {
     'lr': 0.1,
     'epochs': 50,
     'gpu': True,
+    'psd_train': True,
     'psd_TTA': True,
     'lr_decay_power': 1.5,
     'train_crop_size': False,
@@ -135,7 +136,7 @@ def train(train_loader, net, criterion, optimizer, val_loader):
             loss_bn = weighted_BCE_logits(out_change, labels_bn)
             loss_sc = criterion_sc(outputs_A[:, 1:], outputs_B[:, 1:], labels_bn)
             loss = loss_seg*0.5 + loss_bn + loss_sc
-            if bestFscdV>0.3:
+            if args['psd_train'] and bestFscdV>0.3:
                 with torch.no_grad():
                     out_change_psd, outputsA_psd, outputsB_psd = net_psd(imgs_A, imgs_B)
                     softmap_A = F.softmax(outputsA_psd, dim=1)
