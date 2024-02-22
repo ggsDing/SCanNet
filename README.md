@@ -1,5 +1,5 @@
 # SCanNet
-Pytorch codes of **Joint Spatio-Temporal Modeling for Semantic Change Detection in Remote Sensing Images** [[paper]](https://arxiv.org/abs/2212.05245)
+Pytorch codes of **Joint Spatio-Temporal Modeling for Semantic Change Detection in Remote Sensing Images** [[paper]](https://ieeexplore.ieee.org/document/10443352)
 
 
 ![alt text](https://github.com/ggsDing/SCanNet/blob/main/SCanNet.png)
