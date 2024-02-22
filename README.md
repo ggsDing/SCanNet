@@ -36,11 +36,12 @@ For readers' convenience, we also provide the preprocessed data:
 If you find this work useful or interesting, please consider citing the following BibTeX entry.
 
 ```
-@article{ding2022joint,
+@article{ding2024joint,
   title={Joint Spatio-Temporal Modeling for Semantic Change Detection in Remote Sensing Images},
-  author={Ding, Lei and Zhang, Jing and Zhang, Kai and Guo, Haitao and Liu, Bing and Bruzzone, Lorenzo},
-  journal={arXiv preprint arXiv:2212.05245},
-  year={2022}
+  author={Ding, Lei and Zhang, Jing and Guo, Haitao and Zhang, Kai and Liu, Bing and Bruzzone, Lorenzo},
+  journal={IEEE Transactions on Geoscience and Remote Sensing}, 
+  year={2024},
+  doi={10.1109/TGRS.2024.3362795}
 }
 ```
 
