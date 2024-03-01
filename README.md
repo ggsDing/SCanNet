@@ -41,6 +41,8 @@ If you find this work useful or interesting, please consider citing the followin
   author={Ding, Lei and Zhang, Jing and Guo, Haitao and Zhang, Kai and Liu, Bing and Bruzzone, Lorenzo},
   journal={IEEE Transactions on Geoscience and Remote Sensing}, 
   year={2024},
+  volume={62},
+  pages={1-14},
   doi={10.1109/TGRS.2024.3362795}
 }
 ```
