@@ -97,6 +97,7 @@ def read_RSimages(mode):
             labels_A.append(label_A)
             labels_B.append(label_B)
         if not idx%500: print('%d/%d images loaded.'%(idx, len(data_list)))
+        #if idx>50: break
     
     print(labels_A[0].shape)
     print(str(len(imgs_list_A)) + ' ' + mode + ' images' + ' loaded.')
@@ -104,8 +105,10 @@ def read_RSimages(mode):
     return imgs_list_A, imgs_list_B, labels_A, labels_B
 
 class Data(data.Dataset):
-    def __init__(self, mode, random_flip = False):
+    def __init__(self, mode, random_flip=False, random_swap=False):
+        self.mode = mode
         self.random_flip = random_flip
+        self.random_swap = random_swap
         self.imgs_list_A, self.imgs_list_B, self.labels_A, self.labels_B = read_RSimages(mode)
     
     def get_mask_name(self, idx):
@@ -113,15 +116,18 @@ class Data(data.Dataset):
         return mask_name
 
     def __getitem__(self, idx):
+        img_id = os.path.basename(self.imgs_list_A[idx])
         img_A = io.imread(self.imgs_list_A[idx])
         img_A = normalize_image(img_A, 'A')
         img_B = io.imread(self.imgs_list_B[idx])
         img_B = normalize_image(img_B, 'B')
         label_A = self.labels_A[idx]
         label_B = self.labels_B[idx]
-        if self.random_flip:
+        if self.mode=='train' and self.random_flip:
             img_A, img_B, label_A, label_B = transform.rand_rot90_flip_SCD(img_A, img_B, label_A, label_B)
-        return F.to_tensor(img_A), F.to_tensor(img_B), torch.from_numpy(label_A), torch.from_numpy(label_B)
+        if self.mode=='train' and self.random_swap:
+            img_A, img_B, label_A, label_B = transform.rand_swap_SCD(img_A, img_B, label_A, label_B)
+        return F.to_tensor(img_A), F.to_tensor(img_B), torch.from_numpy(label_A), torch.from_numpy(label_B), img_id
 
     def __len__(self):
         return len(self.imgs_list_A)
@@ -155,4 +161,3 @@ class Data_test(data.Dataset):
 
     def __len__(self):
         return self.len
-
