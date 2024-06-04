@@ -113,7 +113,7 @@ class ChangeSimilarity(nn.Module):
     """
     def __init__(self, reduction='mean'):
         super(ChangeSimilarity, self).__init__()
-        self.loss_f = nn.CosineEmbeddingLoss(margin=0., reduction=reduction)
+        self.loss_f = nn.CosineEmbeddingLoss(margin=0.1, reduction=reduction)
         
     def forward(self, x1, x2, label_change):
         b,c,h,w = x1.size()
